@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  nasabah
+  petugas
+  admin
+}
+
+enum DocumentType {
+  KTP
+  BERKAS_PENDAFTARAN
+  CV
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum MutationType {
+  CREDIT
+  DEBIT
+}
+
+model User {
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  password_hash String         @map("password_hash")
+  phone         String?
+  address       String?
+  role          Role           @default(nasabah)
+  balance       Decimal        @default(0.00) @db.Decimal(15, 2)
+  created_at    DateTime       @default(now()) @map("created_at")
+  updated_at    DateTime       @updatedAt @map("updated_at")
+
+  documents            UserDocument[]
+  depositsAsNasabah    Deposit[]         @relation("NasabahDeposits")
+  depositsAsPetugas    Deposit[]         @relation("PetugasDeposits")
+  withdrawals          Withdrawal[]      @relation("NasabahWithdrawals")
+  approvedWithdrawals  Withdrawal[]      @relation("ApprovedWithdrawals")
+  balance_mutations    BalanceMutation[]
+
+  @@map("users")
+}
+
+model UserDocument {
+  id                String       @id @default(uuid())
+  user_id           String       @map("user_id")
+  document_type     DocumentType @map("document_type")
+  original_name     String       @map("original_name")
+  private_file_path String       @map("private_file_path")
+  mime_type         String       @map("mime_type")
+  created_at        DateTime     @default(now()) @map("created_at")
+  updated_at        DateTime     @updatedAt @map("updated_at")
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("user_documents")
+}
+
+model WasteCategory {
+  id                   String   @id @default(uuid())
+  code                 String   @unique
+  name                 String
+  unit                 String   @default("kg")
+  current_price_per_kg Decimal  @map("current_price_per_kg") @db.Decimal(15, 2)
+  public_image_path    String?  @map("public_image_path")
+  is_active            Boolean  @default(true) @map("is_active")
+  created_at           DateTime @default(now()) @map("created_at")
+  updated_at           DateTime @updatedAt @map("updated_at")
+
+  deposit_items DepositItem[]
+
+  @@map("waste_categories")
+}
+
+model Deposit {
+  id               String       @id @default(uuid())
+  transaction_code String       @unique @map("transaction_code")
+  nasabah_id       String       @map("nasabah_id")
+  petugas_id       String       @map("petugas_id")
+  total_weight_kg  Decimal      @map("total_weight_kg") @db.Decimal(10, 2)
+  total_amount     Decimal      @map("total_amount") @db.Decimal(15, 2)
+  status           String       @default("COMPLETED")
+  deposit_date     DateTime     @default(now()) @map("deposit_date")
+  created_at       DateTime     @default(now()) @map("created_at")
+  updated_at       DateTime     @updatedAt @map("updated_at")
+
+  nasabah User          @relation("NasabahDeposits", fields: [nasabah_id], references: [id])
+  petugas User          @relation("PetugasDeposits", fields: [petugas_id], references: [id])
+  items   DepositItem[]
+
+  @@map("deposits")
+}
+
+model DepositItem {
+  id                    String        @id @default(uuid())
+  deposit_id            String        @map("deposit_id")
+  waste_category_id     String        @map("waste_category_id")
+  weight_kg             Decimal       @map("weight_kg") @db.Decimal(10, 2)
+  price_per_kg_snapshot Decimal       @map("price_per_kg_snapshot") @db.Decimal(15, 2)
+  subtotal              Decimal       @db.Decimal(15, 2)
+
+  deposit        Deposit       @relation(fields: [deposit_id], references: [id], onDelete: Cascade)
+  waste_category WasteCategory @relation(fields: [waste_category_id], references: [id])
+
+  @@map("deposit_items")
+}
+
+model Withdrawal {
+  id               String           @id @default(uuid())
+  withdrawal_code  String           @unique @map("withdrawal_code")
+  nasabah_id       String           @map("nasabah_id")
+  amount           Decimal          @db.Decimal(15, 2)
+  status           WithdrawalStatus @default(PENDING)
+  approved_by      String?          @map("approved_by")
+  rejection_reason String?          @map("rejection_reason")
+  requested_at     DateTime         @default(now()) @map("requested_at")
+  processed_at     DateTime?        @map("processed_at")
+
+  nasabah  User  @relation("NasabahWithdrawals", fields: [nasabah_id], references: [id])
+  approver User? @relation("ApprovedWithdrawals", fields: [approved_by], references: [id])
+
+  @@map("withdrawals")
+}
+
+model BalanceMutation {
+  id             String       @id @default(uuid())
+  user_id        String       @map("user_id")
+  reference_type String       @map("reference_type")
+  reference_id   String       @map("reference_id")
+  mutation_type  MutationType @map("mutation_type")
+  amount         Decimal      @db.Decimal(15, 2)
+  balance_before Decimal      @map("balance_before") @db.Decimal(15, 2)
+  balance_after  Decimal      @map("balance_after") @db.Decimal(15, 2)
+  created_at     DateTime     @default(now()) @map("created_at")
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("balance_mutations")
+}
