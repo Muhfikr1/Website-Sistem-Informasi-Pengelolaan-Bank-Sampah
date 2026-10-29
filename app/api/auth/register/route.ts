@@ -1,36 +1,73 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { supabase, PRIVATE_DOCUMENTS_BUCKET } from "@/lib/supabase";
+import { supabase, SUPABASE_PRIVATE_BUCKET, uploadPrivateDocument } from "@/lib/supabase";
+import { checkRateLimit, getClientIp, createRateLimitResponse } from "@/lib/ratelimit";
+import { logger } from "@/lib/logger";
 import bcrypt from "bcryptjs";
-import { randomUUID } from "crypto";
+import { z } from "zod";
+
+const registerBodySchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Nama wajib diisi.")
+    .max(100, "Nama maksimal 100 karakter."),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Format email tidak valid.")
+    .min(1, "Email wajib diisi."),
+  password: z
+    .string()
+    .min(6, "Kata sandi minimal terdiri dari 6 karakter."),
+  phone: z.string().trim().max(30).optional().nullable(),
+  address: z.string().trim().max(300).optional().nullable(),
+});
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB (sesuai CHECK constraint size_bytes)
 
 export async function POST(request: NextRequest) {
+  const clientIp = getClientIp(request);
+
+  // 1. Rate Limiting (Maks 10 percobaan per 1 menit per IP)
+  const rateLimitResult = checkRateLimit(`register:${clientIp}`, {
+    limit: 10,
+    windowMs: 60 * 1000,
+  });
+
+  if (!rateLimitResult.success) {
+    logger.warn(
+      { ip: clientIp, remaining: rateLimitResult.remaining },
+      "Rate limit exceeded pada endpoint register"
+    );
+    return createRateLimitResponse(rateLimitResult.reset);
+  }
+
   let uploadedStoragePath: string | null = null;
 
   try {
     const formData = await request.formData();
-    const name = formData.get("name")?.toString().trim();
-    const email = formData.get("email")?.toString().trim().toLowerCase();
-    const password = formData.get("password")?.toString();
-    const phone = formData.get("phone")?.toString().trim() || null;
-    const address = formData.get("address")?.toString().trim() || null;
+    const rawData = {
+      name: formData.get("name")?.toString(),
+      email: formData.get("email")?.toString(),
+      password: formData.get("password")?.toString(),
+      phone: formData.get("phone")?.toString() || null,
+      address: formData.get("address")?.toString() || null,
+    };
+
+    // 2. Validasi Skema Zod (Validasi Lapis 2)
+    const validationResult = registerBodySchema.safeParse(rawData);
+    if (!validationResult.success) {
+      const firstError = validationResult.error.issues[0]?.message || "Data input tidak valid.";
+      logger.warn({ ip: clientIp, errors: validationResult.error.issues }, "Validasi data register gagal");
+      return NextResponse.json({ error: firstError }, { status: 400 });
+    }
+
+    const { name, email, password, phone, address } = validationResult.data;
     const documentFile = formData.get("document");
 
-    // Validasi field wajib
-    if (!name || !email || !password) {
-      return NextResponse.json(
-        { error: "Nama, email, dan kata sandi wajib diisi." },
-        { status: 400 }
-      );
-    }
-
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: "Kata sandi minimal terdiri dari 6 karakter." },
-        { status: 400 }
-      );
-    }
-
+    // Validasi berkas dokumen
     if (!(documentFile instanceof File) || documentFile.size === 0) {
       return NextResponse.json(
         { error: "Berkas dokumen pendaftaran / KTP wajib diunggah." },
@@ -38,50 +75,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Cek apakah email sudah terdaftar
+    if (documentFile.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: "Ukuran berkas dokumen melebihi batas maksimal 5 MB." },
+        { status: 400 }
+      );
+    }
+
+    logger.info({ ip: clientIp, email }, "Memproses pendaftaran nasabah baru");
+
+    // 3. Cek keunikan email
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
 
     if (existingUser) {
+      logger.warn({ ip: clientIp, email }, "Upaya pendaftaran dengan email yang sudah ada");
       return NextResponse.json(
         { error: "Email sudah terdaftar. Silakan gunakan email lain." },
         { status: 409 }
       );
     }
 
-    // Hash password
+    // Hash kata sandi
     const password_hash = await bcrypt.hash(password, 10);
 
-    // 1. Persiapkan nama file unik & buffer untuk Supabase Storage
-    const sanitizedOriginalName = documentFile.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const uniqueFileName = `${Date.now()}_${randomUUID()}_${sanitizedOriginalName}`;
-    const storageFilePath = uniqueFileName;
-
+    // 4. Upload berkas ke Supabase Private Bucket
     const fileBytes = await documentFile.arrayBuffer();
     const fileBuffer = Buffer.from(fileBytes);
+    const mimeType = documentFile.type || "application/octet-stream";
 
-    // 2. Upload langsung ke Supabase Storage bucket 'private-documents'
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from(PRIVATE_DOCUMENTS_BUCKET)
-      .upload(storageFilePath, fileBuffer, {
-        contentType: documentFile.type || "application/octet-stream",
-        upsert: false,
-      });
+    const uploadResult = await uploadPrivateDocument(
+      fileBuffer,
+      documentFile.name,
+      mimeType
+    );
+    uploadedStoragePath = uploadResult.path;
 
-    if (uploadError) {
-      console.error("Gagal upload ke Supabase Storage:", uploadError);
-      return NextResponse.json(
-        {
-          error: `Gagal mengunggah berkas ke Supabase Storage: ${uploadError.message}`,
-        },
-        { status: 500 }
-      );
-    }
-
-    uploadedStoragePath = uploadData?.path || storageFilePath;
-
-    // 3. Database Transaction: Simpan data User nasabah & metadata berkas di tabel user_documents
+    // 5. Database Transaction: Simpan data User nasabah & metadata berkas di tabel user_documents
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -100,13 +131,20 @@ export async function POST(request: NextRequest) {
           user_id: user.id,
           document_type: "BERKAS_PENDAFTARAN",
           original_name: documentFile.name,
-          private_file_path: uploadedStoragePath as string,
-          mime_type: documentFile.type || "application/octet-stream",
+          storage_bucket: SUPABASE_PRIVATE_BUCKET,
+          storage_object_key: uploadedStoragePath as string,
+          mime_type: mimeType,
+          size_bytes: documentFile.size,
         },
       });
 
       return { user, document };
     });
+
+    logger.info(
+      { userId: result.user.id, email: result.user.email, documentId: result.document.id },
+      "Registrasi nasabah dan penyimpanan dokumen privat berhasil"
+    );
 
     return NextResponse.json(
       {
@@ -122,18 +160,19 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    // Jika transaksi database gagal, bersihkan file yang sempat diupload di Supabase Storage
+    // Rollback berkas Supabase jika transaksi database gagal
     if (uploadedStoragePath) {
       try {
         await supabase.storage
-          .from(PRIVATE_DOCUMENTS_BUCKET)
+          .from(SUPABASE_PRIVATE_BUCKET)
           .remove([uploadedStoragePath]);
+        logger.info({ path: uploadedStoragePath }, "Berkas Supabase di-rollback setelah error transaksi");
       } catch (cleanupErr) {
-        console.error("Gagal membersihkan berkas Supabase:", cleanupErr);
+        logger.error({ cleanupErr, path: uploadedStoragePath }, "Gagal membersihkan berkas Supabase saat rollback");
       }
     }
 
-    console.error("Error pada registrasi nasabah:", error);
+    logger.error({ error, ip: clientIp }, "Error pada registrasi nasabah");
     return NextResponse.json(
       { error: "Terjadi kesalahan internal pada server saat registrasi." },
       { status: 500 }

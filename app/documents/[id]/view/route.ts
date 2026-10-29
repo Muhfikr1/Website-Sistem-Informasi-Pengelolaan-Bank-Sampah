@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { supabase, PRIVATE_DOCUMENTS_BUCKET } from "@/lib/supabase";
+import {
+  supabase,
+  SUPABASE_PRIVATE_BUCKET,
+  createPrivateDocumentSignedUrl,
+} from "@/lib/supabase";
+import { checkRateLimit, getClientIp, createRateLimitResponse } from "@/lib/ratelimit";
+import { logger } from "@/lib/logger";
+import { z } from "zod";
 import fs from "fs/promises";
 import path from "path";
+
+const paramsSchema = z.object({
+  id: z.string().min(1, "ID dokumen wajib disertakan."),
+});
 
 function createForbiddenHtmlResponse(
   title: string,
@@ -121,10 +132,38 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const clientIp = getClientIp(request);
+
+  // 1. Rate Limiting (Maks 30 request per menit per IP)
+  const rateLimitResult = checkRateLimit(`doc-view:${clientIp}`, {
+    limit: 30,
+    windowMs: 60 * 1000,
+  });
+
+  if (!rateLimitResult.success) {
+    logger.warn({ ip: clientIp }, "Rate limit exceeded pada akses dokumen privat");
+    return createRateLimitResponse(rateLimitResult.reset);
+  }
+
   try {
-    // 1. Validasi sesi login pengguna
+    // 2. Validasi Parameter ID menggunakan Zod (Validasi Lapis 2)
+    const rawParams = await params;
+    const parsedParams = paramsSchema.safeParse(rawParams);
+
+    if (!parsedParams.success) {
+      logger.warn({ ip: clientIp, errors: parsedParams.error.issues }, "ID Dokumen tidak valid");
+      return new NextResponse(
+        JSON.stringify({ error: "ID Dokumen tidak valid." }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const { id } = parsedParams.data;
+
+    // 3. Validasi sesi login pengguna
     const session = await getSession();
     if (!session) {
+      logger.warn({ ip: clientIp, docId: id }, "Akses dokumen ditolak: sesi login tidak ditemukan");
       return createForbiddenHtmlResponse(
         "403 FORBIDDEN - ANDA HARUS LOGIN",
         "Akses dokumen privat ditolak. Anda wajib masuk terlebih dahulu untuk mengakses dokumen pribadi.",
@@ -132,27 +171,36 @@ export async function GET(
       );
     }
 
-    const { id } = await params;
-
-    // 2. Ambil metadata dokumen dari database
+    // 4. Ambil metadata dokumen dari database
     const document = await prisma.userDocument.findUnique({
-      where: { id: String(id) },
+      where: { id },
       include: { user: true },
     });
 
     if (!document) {
+      logger.warn({ ip: clientIp, docId: id, userId: session.id }, "Dokumen tidak ditemukan di database");
       return new NextResponse(
         JSON.stringify({ error: "Dokumen tidak ditemukan." }),
         { status: 404, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    // 3. VALIDASI OTORISASI WAJIB:
+    // 5. VALIDASI OTORISASI KETAT (Validasi Hak Akses):
     // Hanya pemilik sah dokumen (session.id === document.user_id) ATAU role 'admin'
     const isOwner = session.id === document.user_id;
     const isAdmin = session.role === "admin";
 
     if (!isOwner && !isAdmin) {
+      logger.warn(
+        {
+          ip: clientIp,
+          userId: session.id,
+          userRole: session.role,
+          docId: document.id,
+          docOwnerId: document.user_id,
+        },
+        "Akses dokumen privat ditolak: pengguna tidak berhak (403 Forbidden)"
+      );
       return createForbiddenHtmlResponse(
         "403 FORBIDDEN - AKSES DOKUMEN PRIVAT DITOLAK",
         "Pengguna tanpa hak tidak diizinkan membuka CV, berkas pendaftaran, atau dokumen pribadi milik pengguna lain.",
@@ -160,63 +208,110 @@ export async function GET(
       );
     }
 
-    // 4. Unduh berkas dari Supabase Storage Bucket 'private-documents'
-    const { data: fileBlob, error: downloadError } = await supabase.storage
-      .from(PRIVATE_DOCUMENTS_BUCKET)
-      .download(document.private_file_path);
+    logger.info(
+      { userId: session.id, role: session.role, docId: document.id },
+      "Otorisasi akses dokumen privat berhasil diverifikasi"
+    );
 
-    if (fileBlob) {
-      const fileBytes = await fileBlob.arrayBuffer();
-      return new NextResponse(Buffer.from(fileBytes), {
+    // Ambil storage key dengan fallback kompatibilitas ke private_file_path (v3.0)
+    const docRecord = document as unknown as Record<string, unknown>;
+    const storageKey =
+      (typeof docRecord.storage_object_key === "string" ? docRecord.storage_object_key : null) ||
+      (typeof docRecord.private_file_path === "string" ? docRecord.private_file_path : null) ||
+      "";
+
+    // 6. Akses Berkas: Buat Signed URL berbatas waktu dari Supabase Storage jika terhubung
+    if (storageKey) {
+      const { signedUrl, error: signedUrlError } = await createPrivateDocumentSignedUrl(
+        storageKey,
+        300 // berlaku 5 menit (300 detik)
+      );
+
+      if (signedUrl && !signedUrlError) {
+        logger.info({ docId: document.id }, "Mengarahkan akses dokumen privat ke Signed URL Supabase");
+        const destination = signedUrl.startsWith("http")
+          ? signedUrl
+          : new URL(signedUrl, request.url).toString();
+        return NextResponse.redirect(new URL(destination), 307);
+      }
+    }
+
+    // Fallback 1: Unduh berkas langsung dari Supabase Storage jika Signed URL gagal
+    if (storageKey) {
+      const bucket =
+        typeof docRecord.storage_bucket === "string"
+          ? docRecord.storage_bucket
+          : SUPABASE_PRIVATE_BUCKET;
+      try {
+        const { data: fileBlob, error: downloadError } = await supabase.storage
+          .from(bucket)
+          .download(storageKey);
+
+        if (fileBlob && !downloadError) {
+          const fileBytes = await fileBlob.arrayBuffer();
+          return new NextResponse(Buffer.from(fileBytes), {
+            status: 200,
+            headers: {
+              "Content-Type": document.mime_type || fileBlob.type || "application/octet-stream",
+              "Content-Disposition": `inline; filename="${encodeURIComponent(
+                document.original_name
+              )}"`,
+              "Cache-Control": "private, no-cache, no-store, must-revalidate",
+            },
+          });
+        }
+      } catch {
+        // Abaikan error download Supabase dan lanjutkan ke fallback storage lokal
+      }
+    }
+
+    // Fallback 2: Ambil berkas dari penyimpanan lokal (kompatibilitas berkas v3.0)
+    const fileName = path.basename(storageKey || document.original_name);
+    const localPath = path.join(process.cwd(), "storage", "private", "documents", fileName);
+
+    try {
+      await fs.access(localPath);
+      const localBuffer = await fs.readFile(localPath);
+      logger.info({ docId: document.id, localPath }, "Dokumen berhasil dibuka dari penyimpanan lokal");
+      return new NextResponse(localBuffer, {
         status: 200,
         headers: {
-          "Content-Type": document.mime_type || fileBlob.type || "application/octet-stream",
+          "Content-Type": document.mime_type || "application/octet-stream",
           "Content-Disposition": `inline; filename="${encodeURIComponent(
             document.original_name
           )}"`,
           "Cache-Control": "private, no-cache, no-store, must-revalidate",
         },
       });
+    } catch {
+      // File tidak ada di local storage
     }
 
-    // Fallback: Jika berkas pernah diunggah ke storage lokal sebelum integrasi Supabase
-    if (downloadError) {
-      const fileName = path.basename(document.private_file_path);
-      const localPath = path.join(process.cwd(), "storage", "private", "documents", fileName);
-
-      try {
-        await fs.access(localPath);
-        const localBuffer = await fs.readFile(localPath);
-        return new NextResponse(localBuffer, {
-          status: 200,
-          headers: {
-            "Content-Type": document.mime_type || "application/octet-stream",
-            "Content-Disposition": `inline; filename="${encodeURIComponent(
-              document.original_name
-            )}"`,
-            "Cache-Control": "private, no-cache, no-store, must-revalidate",
-          },
-        });
-      } catch {
-        console.error("Supabase Storage error:", downloadError);
-        return new NextResponse(
-          JSON.stringify({
-            error: "Berkas tidak ditemukan di Supabase Storage maupun penyimpanan lokal.",
-            details: downloadError.message,
-          }),
-          { status: 404, headers: { "Content-Type": "application/json" } }
-        );
-      }
-    }
-
-    return new NextResponse(
-      JSON.stringify({ error: "Gagal memproses berkas dokumen." }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+    logger.error(
+      { docId: document.id, storageKey },
+      "Dokumen tidak ditemukan di Supabase Storage maupun penyimpanan lokal"
     );
-  } catch (error) {
-    console.error("Error saat mengakses dokumen privat:", error);
     return new NextResponse(
-      JSON.stringify({ error: "Terjadi kesalahan internal pada server saat membuka dokumen." }),
+      JSON.stringify({
+        error: "Berkas tidak ditemukan di Supabase Storage maupun penyimpanan lokal.",
+      }),
+      { status: 404, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error: unknown) {
+    logger.error({ error, ip: clientIp }, "Error saat mengakses dokumen privat");
+
+    const err = error as { code?: string; message?: string; name?: string } | undefined;
+    const isDbError =
+      err?.code === "P1001" ||
+      err?.message?.includes("Can't reach database server") ||
+      err?.name === "PrismaClientInitializationError";
+
+    const errorMessage = isDbError
+      ? "Koneksi database PostgreSQL tidak dapat dihubungi. Pastikan DATABASE_URL pada file .env sudah diatur dengan benar."
+      : "Terjadi kesalahan internal pada server saat membuka dokumen.";
+
+    return new NextResponse(
+      JSON.stringify({ error: errorMessage, details: err?.message }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }

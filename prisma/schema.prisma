@@ -44,24 +44,27 @@ model User {
   updated_at    DateTime       @updatedAt @map("updated_at")
 
   documents            UserDocument[]
-  depositsAsNasabah    Deposit[]         @relation("NasabahDeposits")
-  depositsAsPetugas    Deposit[]         @relation("PetugasDeposits")
-  withdrawals          Withdrawal[]      @relation("NasabahWithdrawals")
-  approvedWithdrawals  Withdrawal[]      @relation("ApprovedWithdrawals")
+  depositsAsNasabah    Deposit[]            @relation("NasabahDeposits")
+  depositsAsPetugas    Deposit[]            @relation("PetugasDeposits")
+  withdrawals          Withdrawal[]         @relation("NasabahWithdrawals")
+  approvedWithdrawals  Withdrawal[]         @relation("ApprovedWithdrawals")
   balance_mutations    BalanceMutation[]
+  push_subscriptions   PushSubscription[]
 
   @@map("users")
 }
 
 model UserDocument {
-  id                String       @id @default(uuid())
-  user_id           String       @map("user_id")
-  document_type     DocumentType @map("document_type")
-  original_name     String       @map("original_name")
-  private_file_path String       @map("private_file_path")
-  mime_type         String       @map("mime_type")
-  created_at        DateTime     @default(now()) @map("created_at")
-  updated_at        DateTime     @updatedAt @map("updated_at")
+  id                 String       @id @default(uuid())
+  user_id            String       @map("user_id")
+  document_type      DocumentType @map("document_type")
+  original_name      String       @map("original_name")
+  storage_bucket     String       @default("private-documents") @map("storage_bucket")
+  storage_object_key String       @map("storage_object_key")
+  mime_type          String       @map("mime_type")
+  size_bytes         Int          @map("size_bytes")
+  created_at         DateTime     @default(now()) @map("created_at")
+  updated_at         DateTime     @updatedAt @map("updated_at")
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
@@ -74,7 +77,7 @@ model WasteCategory {
   name                 String
   unit                 String   @default("kg")
   current_price_per_kg Decimal  @map("current_price_per_kg") @db.Decimal(15, 2)
-  public_image_path    String?  @map("public_image_path")
+  public_image_url     String?  @map("public_image_url")
   is_active            Boolean  @default(true) @map("is_active")
   created_at           DateTime @default(now()) @map("created_at")
   updated_at           DateTime @updatedAt @map("updated_at")
@@ -100,6 +103,7 @@ model Deposit {
   petugas User          @relation("PetugasDeposits", fields: [petugas_id], references: [id])
   items   DepositItem[]
 
+  @@index([nasabah_id, deposit_date(sort: Desc)])
   @@map("deposits")
 }
 
@@ -131,6 +135,7 @@ model Withdrawal {
   nasabah  User  @relation("NasabahWithdrawals", fields: [nasabah_id], references: [id])
   approver User? @relation("ApprovedWithdrawals", fields: [approved_by], references: [id])
 
+  @@index([status, requested_at(sort: Desc)])
   @@map("withdrawals")
 }
 
@@ -148,4 +153,20 @@ model BalanceMutation {
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("balance_mutations")
+}
+
+model PushSubscription {
+  id         String   @id @default(uuid())
+  user_id    String   @map("user_id")
+  endpoint   String   @unique
+  p256dh_key String   @map("p256dh_key")
+  auth_key   String   @map("auth_key")
+  user_agent String?  @map("user_agent")
+  is_active  Boolean  @default(true) @map("is_active")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("push_subscriptions")
 }

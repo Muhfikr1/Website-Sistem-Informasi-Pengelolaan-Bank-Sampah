@@ -19,8 +19,11 @@ interface MockDocument {
   user_id: string;
   original_name: string;
   document_type: string;
-  private_file_path: string;
+  storage_bucket?: string;
+  storage_object_key?: string;
+  private_file_path?: string;
   mime_type: string;
+  size_bytes?: number;
 }
 
 function checkDocumentAccess(
