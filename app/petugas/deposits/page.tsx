@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/auth";
 import LogoutButton from "@/components/LogoutButton";
 import { PackagePlus, ShieldCheck, ClipboardList, Scale } from "lucide-react";
+import Link from "next/link";
 
 export default async function PetugasDepositsPage() {
   const session = await getSession();
@@ -31,7 +32,13 @@ export default async function PetugasDepositsPage() {
                 {session?.email}
               </span>
             </div>
-            <LogoutButton />
+            <Link
+  href="/petugas/profile"
+  className="text-sm font-medium text-teal-700 hover:underline"
+>
+  Profil &amp; CV
+</Link>
+<LogoutButton />
           </div>
         </div>
       </header>
