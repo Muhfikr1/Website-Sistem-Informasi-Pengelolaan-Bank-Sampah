@@ -6,8 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+  "check:infra": "tsx --env-file=.env scripts/check-infra.ts",
+  "db:seed": "prisma db seed"
   },
+  "prisma": {
+  "seed": "tsx --env-file=.env prisma/seed.ts"
+},
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "@supabase/ssr": "^0.12.7",
@@ -40,3 +45,5 @@
     "typescript": "^5"
   }
 }
+
+
