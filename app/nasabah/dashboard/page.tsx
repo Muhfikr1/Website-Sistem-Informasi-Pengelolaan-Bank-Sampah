@@ -1,6 +1,5 @@
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import LogoutButton from "@/components/LogoutButton";
 import Link from "next/link";
 import {
   User,
@@ -19,44 +18,15 @@ export default async function NasabahDashboardPage() {
 
   const documents = session?.id
     ? await prisma.userDocument.findMany({
-        where: { user_id: session.id },
-        orderBy: { created_at: "desc" },
-      })
+      where: { user_id: session.id },
+      orderBy: { created_at: "desc" },
+    })
     : [];
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900">
-      {/* Top Navigation */}
-      <header className="bg-white border-b border-neutral-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold">
-              <Leaf className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="font-bold text-base text-neutral-900 block leading-tight">
-                Bank Sampah
-              </span>
-              <span className="text-xs text-neutral-500">Portal Nasabah</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex flex-col text-right">
-              <span className="text-sm font-semibold text-neutral-800">
-                {session?.name || "Nasabah"}
-              </span>
-              <span className="text-xs text-emerald-600 font-medium">
-                {session?.email}
-              </span>
-            </div>
-            <LogoutButton />
-          </div>
-        </div>
-      </header>
-
+    <div>
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <div className="space-y-6">
         {/* Welcome Banner */}
         <div className="bg-white rounded-2xl border border-neutral-200 p-6 sm:p-8 shadow-sm">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-neutral-100">
@@ -209,7 +179,7 @@ export default async function NasabahDashboardPage() {
             </div>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
