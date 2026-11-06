@@ -1,135 +1,285 @@
 import Link from "next/link";
-import { getSession } from "@/lib/auth";
-import { Recycle, ArrowRight, ShieldCheck, UserPlus, LogIn, Scale } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarClock,
+  Clock,
+  Mail,
+  MapPin,
+  Phone,
+  Recycle,
+  ShieldCheck,
+  UserPlus,
+} from "lucide-react";
+import PublicNavbar from "@/components/layout/PublicNavbar";
+import Footer from "@/components/layout/Footer";
+import EmptyState from "@/components/ui/EmptyState";
+import ErrorAlert from "@/components/ui/ErrorAlert";
+import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+import { siteConfig } from "@/lib/site-config";
+import { formatRupiah } from "@/lib/ui-format";
+
+// Data katalog harus selalu terbaru dari database
+export const dynamic = "force-dynamic";
+
+interface CatalogItem {
+  id: string;
+  code: string;
+  name: string;
+  unit: string;
+  price: number;
+  imageUrl: string | null;
+}
+
+async function getCatalog(): Promise<{ items: CatalogItem[]; failed: boolean }> {
+  try {
+    const rows = await prisma.wasteCategory.findMany({
+      where: { is_active: true },
+      orderBy: { code: "asc" },
+    });
+    return {
+      failed: false,
+      items: rows.map((r) => ({
+        id: r.id,
+        code: r.code,
+        name: r.name,
+        unit: r.unit,
+        price: r.current_price_per_kg.toNumber(),
+        imageUrl: r.public_image_url,
+      })),
+    };
+  } catch (error) {
+    logger.error({ error, context: "API", operation: "landing.getCatalog" }, "Gagal memuat katalog sampah");
+    return { items: [], failed: true };
+  }
+}
+
+function SectionHeading({ id, eyebrow, title, desc }: { id: string; eyebrow: string; title: string; desc?: string }) {
+  return (
+    <div className="mb-8 max-w-2xl">
+      <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">{eyebrow}</p>
+      <h2 id={id} className="mt-2 text-2xl font-black tracking-tight text-neutral-900 sm:text-3xl">
+        {title}
+      </h2>
+      {desc && <p className="mt-2 text-sm leading-relaxed text-neutral-600 sm:text-base">{desc}</p>}
+    </div>
+  );
+}
 
 export default async function Home() {
-  const session = await getSession();
-
-  let targetDashboard = "/login";
-  if (session?.role === "nasabah") targetDashboard = "/nasabah/dashboard";
-  else if (session?.role === "petugas") targetDashboard = "/petugas/deposits";
-  else if (session?.role === "admin") targetDashboard = "/admin/waste-categories";
+  const { items, failed } = await getCatalog();
+  const { profile, procedure, schedule, location } = siteConfig;
+  const mapSrc = `https://www.google.com/maps?q=${encodeURIComponent(location.mapQuery)}&output=embed`;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/70 via-white to-neutral-50 text-neutral-900 flex flex-col">
-      {/* Navbar */}
-      <header className="border-b border-emerald-100/80 bg-white/80 backdrop-blur-md sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-md shadow-emerald-600/20">
-              <Recycle className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="font-bold text-lg text-emerald-950 block leading-tight">
-                Bank Sampah Digital
-              </span>
-              <span className="text-[11px] text-emerald-700 font-medium">
-                Sistem Informasi Pengelolaan Terpadu
-              </span>
-            </div>
-          </div>
+    <div className="flex min-h-screen flex-col bg-gradient-to-b from-emerald-50/70 via-white to-neutral-50 text-neutral-900">
+      <PublicNavbar />
 
-          <div className="flex items-center gap-3">
-            {session ? (
-              <Link
-                href={targetDashboard}
-                className="flex items-center gap-2 py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all shadow-sm"
-              >
-                <span>Buka Dashboard ({session.role})</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="flex items-center gap-1.5 py-2 px-4 rounded-xl text-neutral-700 hover:text-emerald-700 hover:bg-emerald-50 text-sm font-semibold transition-all"
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span>Masuk</span>
-                </Link>
+      <main id="main-content" tabIndex={-1} className="flex-1">
+        {/* 1. PROFIL + 7. TOMBOL DAFTAR (hero) */}
+        <section aria-labelledby="profil" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
+          <div className="grid items-center gap-10 lg:grid-cols-2">
+            <div>
+              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-100/70 px-3.5 py-1.5 text-xs font-semibold text-emerald-800">
+                <ShieldCheck className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                Profil Bank Sampah
+              </span>
+              <h1 id="profil" className="mt-5 text-4xl font-black leading-[1.15] tracking-tight sm:text-5xl">
+                {profile.headline}
+              </h1>
+              <p className="mt-5 max-w-xl text-base leading-relaxed text-neutral-600 sm:text-lg">
+                {profile.summary}
+              </p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/register"
-                  className="flex items-center gap-1.5 py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all shadow-sm shadow-emerald-600/20"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-emerald-600/25 hover:bg-emerald-700"
                 >
-                  <UserPlus className="w-4 h-4" />
+                  <UserPlus className="h-4 w-4" aria-hidden="true" />
                   <span>Daftar Nasabah</span>
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </Link>
-              </>
+                <Link
+                  href="#katalog"
+                  className="inline-flex items-center justify-center rounded-xl border border-neutral-300 bg-white px-6 py-3.5 text-sm font-semibold text-neutral-800 shadow-sm hover:bg-neutral-50"
+                >
+                  Lihat Harga Sampah
+                </Link>
+              </div>
+            </div>
+
+            <ul className="space-y-3">
+              {profile.highlights.map((text) => (
+                <li
+                  key={text}
+                  className="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"
+                >
+                  <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                    <Recycle className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <span className="text-sm leading-relaxed text-neutral-700">{text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {/* 2. JENIS SAMPAH + 3. HARGA PER KG (dari database + Supabase bucket 'catalog') */}
+        <section id="katalog" aria-labelledby="katalog-title" className="scroll-mt-20 bg-white py-16">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <SectionHeading
+              id="katalog-title"
+              eyebrow="Jenis Sampah & Harga"
+              title="Sampah yang Kami Terima"
+              desc="Harga per kilogram diperbarui admin dan selalu tampil sesuai data terbaru."
+            />
+
+            {failed ? (
+              <ErrorAlert
+                title="Katalog gagal dimuat"
+                message="Kami belum bisa mengambil daftar jenis sampah. Muat ulang halaman beberapa saat lagi."
+              />
+            ) : items.length === 0 ? (
+              <EmptyState
+                title="Belum ada jenis sampah aktif"
+                description="Daftar jenis sampah akan tampil di sini setelah admin menambahkannya."
+              />
+            ) : (
+              <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {items.map((item) => (
+                  <li
+                    key={item.id}
+                    className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+                  >
+                    <div className="aspect-[4/3] w-full bg-emerald-50">
+                      {item.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={item.imageUrl}
+                          alt={`Foto ${item.name}`}
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-emerald-300">
+                          <Recycle className="h-12 w-12" aria-hidden="true" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-5">
+                      <p className="font-mono text-[11px] font-semibold text-neutral-400">{item.code}</p>
+                      <h3 className="mt-0.5 text-base font-bold text-neutral-900">{item.name}</h3>
+                      <p className="mt-3 text-2xl font-black text-emerald-700">
+                        {formatRupiah(item.price)}
+                        <span className="ml-1 text-sm font-medium text-neutral-500">/ {item.unit}</span>
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
-        </div>
-      </header>
+        </section>
 
-      {/* Hero Section */}
-      <main className="flex-1 max-w-5xl mx-auto px-4 sm:px-6 flex flex-col items-center justify-center text-center py-20">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-emerald-100/70 text-emerald-800 border border-emerald-200/80 mb-6">
-          <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span>Sistem Informasi Terintegrasi Bank Sampah</span>
-        </div>
-
-        <h1 className="text-4xl sm:text-5xl font-black text-neutral-900 tracking-tight max-w-2xl leading-[1.15]">
-          Ubah Sampah Menjadi Berkah & Nilai Ekonomi Nyata
-        </h1>
-
-        <p className="mt-5 text-base sm:text-lg text-neutral-600 max-w-xl leading-relaxed">
-          Platform digital pengelolaan bank sampah dengan pembekuan harga setoran otomatis,
-          proteksi berkas dokumen privat, dan penarikan saldo transparan.
-        </p>
-
-        <div className="mt-10 flex flex-col sm:flex-row gap-4 w-full max-w-md justify-center">
-          <Link
-            href="/register"
-            className="flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-all shadow-lg shadow-emerald-600/25"
-          >
-            <span>Daftar Nasabah Baru</span>
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-
-          <Link
-            href="/login"
-            className="flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl bg-white hover:bg-neutral-50 text-neutral-800 font-semibold text-sm transition-all border border-neutral-300 shadow-sm"
-          >
-            <span>Masuk ke Akun Anda</span>
-          </Link>
-        </div>
-
-        {/* Feature Cards */}
-        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 text-left w-full">
-          <div className="bg-white p-6 rounded-2xl border border-neutral-200/80 shadow-sm">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
-              <Recycle className="w-5 h-5" />
-            </div>
-            <h3 className="font-bold text-neutral-900 mb-1 text-base">Portal Nasabah</h3>
-            <p className="text-xs text-neutral-500 leading-relaxed">
-              Cek saldo riil, histori mutasi transaksi kredit & debit, dan upload berkas dokumen pendaftaran dengan privasi terjamin.
-            </p>
+        {/* 4. PROSEDUR SETORAN */}
+        <section id="prosedur" aria-labelledby="prosedur-title" className="scroll-mt-20 py-16">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <SectionHeading
+              id="prosedur-title"
+              eyebrow="Prosedur Setoran"
+              title="Cara Menyetor Sampah"
+              desc="Lima langkah mudah dari pendaftaran hingga saldo masuk ke akun Anda."
+            />
+            <ol className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {procedure.map((step, i) => (
+                <li key={step.title} className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
+                    {i + 1}
+                  </span>
+                  <h3 className="mt-4 text-sm font-bold text-neutral-900">{step.title}</h3>
+                  <p className="mt-1 text-xs leading-relaxed text-neutral-600">{step.description}</p>
+                </li>
+              ))}
+            </ol>
           </div>
+        </section>
 
-          <div className="bg-white p-6 rounded-2xl border border-neutral-200/80 shadow-sm">
-            <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center mb-4">
-              <Scale className="w-5 h-5" />
-            </div>
-            <h3 className="font-bold text-neutral-900 mb-1 text-base">Portal Petugas</h3>
-            <p className="text-xs text-neutral-500 leading-relaxed">
-              Input penimbangan sampah dengan presisi desimal 2 angka di belakang koma dan pencatatan snapshot harga secara real-time.
-            </p>
-          </div>
+        {/* 5. JADWAL OPERASIONAL + 6. LOKASI */}
+        <section aria-label="Jadwal dan lokasi" className="bg-white py-16">
+          <div className="mx-auto grid max-w-6xl gap-10 px-4 sm:px-6 lg:grid-cols-2">
+            <section id="jadwal" aria-labelledby="jadwal-title" className="scroll-mt-20">
+              <SectionHeading id="jadwal-title" eyebrow="Jadwal Operasional" title="Jam Layanan" />
+              <ul className="divide-y divide-neutral-100 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+                {schedule.map((row) => (
+                  <li key={row.day} className="flex items-center justify-between gap-4 px-5 py-4">
+                    <span className="flex items-center gap-2.5 text-sm font-semibold text-neutral-800">
+                      <CalendarClock className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                      {row.day}
+                    </span>
+                    <span
+                      className={`flex items-center gap-1.5 text-sm font-medium ${row.open ? "text-neutral-700" : "text-red-600"
+                        }`}
+                    >
+                      <Clock className="h-4 w-4" aria-hidden="true" />
+                      {row.hours}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
 
-          <div className="bg-white p-6 rounded-2xl border border-neutral-200/80 shadow-sm">
-            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center mb-4">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <h3 className="font-bold text-neutral-900 mb-1 text-base">Portal Administrator</h3>
-            <p className="text-xs text-neutral-500 leading-relaxed">
-              Manajemen kategori dan harga sampah, approval penarikan saldo, serta kontrol keamanan berkas berbasis RBAC 3 Peran.
-            </p>
+            <section id="lokasi" aria-labelledby="lokasi-title" className="scroll-mt-20">
+              <SectionHeading id="lokasi-title" eyebrow="Lokasi" title="Temukan Kami" />
+              <div className="overflow-hidden rounded-2xl border border-neutral-200 shadow-sm">
+                <iframe
+                  title={`Peta lokasi ${location.placeName}`}
+                  src={mapSrc}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  className="h-64 w-full border-0"
+                />
+              </div>
+              <address className="mt-4 space-y-2 text-sm not-italic text-neutral-700">
+                <p className="flex items-start gap-2">
+                  <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" aria-hidden="true" />
+                  <span>
+                    <strong>{location.placeName}</strong>
+                    <br />
+                    {location.address}
+                  </span>
+                </p>
+                <p className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                  {location.phone}
+                </p>
+                <p className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                  {location.email}
+                </p>
+              </address>
+            </section>
           </div>
-        </div>
+        </section>
+
+        {/* 7. TOMBOL DAFTAR NASABAH (CTA penutup) */}
+        <section aria-label="Ajakan mendaftar" className="px-4 py-16 sm:px-6">
+          <div className="mx-auto max-w-4xl rounded-3xl bg-emerald-600 px-6 py-12 text-center text-white shadow-xl shadow-emerald-600/20">
+            <h2 className="text-2xl font-black sm:text-3xl">Siap Mulai Menabung Sampah?</h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm text-emerald-50 sm:text-base">
+              Daftar sebagai nasabah, unggah KTP Anda, dan mulai kumpulkan saldo dari sampah yang dipilah.
+            </p>
+            <Link
+              href="/register"
+              className="mt-7 inline-flex items-center gap-2 rounded-xl bg-white px-7 py-3.5 text-sm font-bold text-emerald-700 shadow hover:bg-emerald-50"
+            >
+              <UserPlus className="h-4 w-4" aria-hidden="true" />
+              Daftar Nasabah Sekarang
+            </Link>
+          </div>
+        </section>
       </main>
 
-      <footer className="border-t border-neutral-200 py-6 text-center text-xs text-neutral-500">
-        &copy; {new Date().getFullYear()} Bank Sampah Digital. Seluruh hak cipta dilindungi undang-undang.
-      </footer>
+      <Footer />
     </div>
   );
 }
