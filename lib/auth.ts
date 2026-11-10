@@ -58,9 +58,27 @@ export async function createSession(user: {
   return token;
 }
 
-export async function getSession(): Promise<SessionPayload | null> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(COOKIE_NAME)?.value;
+export async function getSession(request?: Request): Promise<SessionPayload | null> {
+  let token: string | undefined;
+
+  if (request) {
+    const cookieHeader = request.headers.get("cookie");
+    if (cookieHeader) {
+      const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${COOKIE_NAME}=([^;]*)`));
+      token = match ? decodeURIComponent(match[1]) : undefined;
+    }
+  }
+
+  if (!token) {
+    try {
+      const cookieStore = await cookies();
+      token = cookieStore.get(COOKIE_NAME)?.value;
+    } catch {
+      // Dipanggil di luar request context
+      return null;
+    }
+  }
+
   if (!token) return null;
   return verifyToken(token);
 }
