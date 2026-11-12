@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Menu, Recycle, X } from "lucide-react";
 import LogoutButton from "@/components/LogoutButton";
+import PushToggle from "@/components/PushToggle";
 import Sidebar from "./Sidebar";
 import { ROLE_META, type Role } from "./nav-items";
 
@@ -107,6 +108,7 @@ export default function DashboardShell({
                             <span className="text-sm font-semibold text-neutral-800">{userName}</span>
                             <span className="text-xs text-neutral-500">{userEmail}</span>
                         </div>
+                        {role === "nasabah" && <PushToggle />}
                         <LogoutButton />
                     </div>
                 </header>
