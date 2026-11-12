@@ -7,12 +7,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-  "check:infra": "tsx --env-file=.env scripts/check-infra.ts",
-  "db:seed": "prisma db seed"
+    "check:infra": "tsx --env-file=.env scripts/check-infra.ts",
+    "db:seed": "prisma db seed",
+    "worker": "tsx --env-file=.env worker/index.ts",
+    "queue:enqueue-test": "tsx --env-file=.env scripts/enqueue-test.ts",
+    "queue:status": "tsx --env-file=.env scripts/queue-status.ts"
   },
   "prisma": {
-  "seed": "tsx --env-file=.env prisma/seed.ts"
-},
+    "seed": "tsx --env-file=.env prisma/seed.ts"
+  },
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "@supabase/ssr": "^0.12.7",
