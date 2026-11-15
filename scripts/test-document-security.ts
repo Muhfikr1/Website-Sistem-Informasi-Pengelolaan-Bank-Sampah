@@ -114,6 +114,12 @@ console.log(`\nTest 4 (Nasabah A coba intip CV Petugas): Status ${test4.status} 
 if (test4.status === 403 && !test4.allowed) console.log("✔ LULUS: Akses ke berkas privat petugas ditolak dengan 403.");
 else throw new Error("Gagal Test 4");
 
+// Test Case 4b: Petugas membuka CV miliknya sendiri
+const test4b = checkDocumentAccess(petugas, docPetugasCV);
+console.log(`\nTest 4b (Petugas buka CV miliknya sendiri): Status ${test4b.status} - ${test4b.message}`);
+if (test4b.status === 200 && test4b.allowed) console.log("✔ LULUS: Petugas dapat membuka CV miliknya sendiri.");
+else throw new Error("Gagal Test 4b");
+
 // Test Case 5: Administrator membuka dokumen siapapun
 const test5a = checkDocumentAccess(admin, docNasabahA);
 const test5b = checkDocumentAccess(admin, docPetugasCV);

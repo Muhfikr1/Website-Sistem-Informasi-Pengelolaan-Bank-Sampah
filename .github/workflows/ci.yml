@@ -1,0 +1,64 @@
+name: CI / Code Quality & Build
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'orang*'
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-and-build:
+    name: Code Quality, Typecheck & Build
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: test
+      NEXT_TELEMETRY_DISABLED: "1"
+      LOG_LEVEL: "silent"
+      DATABASE_URL: "postgresql://postgres:dummy_password@localhost:5432/bank_sampah_ci?schema=public"
+      DIRECT_URL: "postgresql://postgres:dummy_password@localhost:5432/bank_sampah_ci?schema=public"
+      NEXT_PUBLIC_SUPABASE_URL: "https://ci-dummy-project.supabase.co"
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "dummy-anon-key-for-ci-build-testing"
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "dummy-publishable-key-for-ci-build-testing"
+      SUPABASE_SERVICE_ROLE_KEY: "dummy-service-role-key-for-ci-build-testing"
+      SUPABASE_PUBLIC_BUCKET: "catalog"
+      SUPABASE_PRIVATE_BUCKET: "private-documents"
+      JWT_SECRET: "dummy_jwt_secret_key_minimum_32_characters_long_for_ci_pipeline"
+      NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+      REDIS_URL: "redis://localhost:6379"
+      VAPID_SUBJECT: "mailto:ci-admin@banksampah.id"
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: "BAhltCjtjL_qGZSnU-NHUTsMCYROhE9rICp_QkP4ThrfU1mmSf5UDaYrFBGjwQezAuzIYCuB8pjJV9MaUMj7UPI"
+      VAPID_PRIVATE_KEY: "5vCbNFuUkRYh5JcktErrxIqfDZzcz9_ndgE1kRnVd1Q"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: TypeScript Type Check
+        run: npx tsc --noEmit
+
+      - name: Lint Code
+        run: npm run lint
+
+      - name: Verify Next.js Production Build
+        run: npm run build

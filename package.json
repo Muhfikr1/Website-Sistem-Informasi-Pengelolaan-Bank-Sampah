@@ -3,15 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node --use-system-ca ./node_modules/next/dist/bin/next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check:infra": "tsx --env-file=.env scripts/check-infra.ts",
-    "db:seed": "prisma db seed",
-    "worker": "tsx --env-file=.env worker/index.ts",
-    "queue:enqueue-test": "tsx --env-file=.env scripts/enqueue-test.ts",
-    "queue:status": "tsx --env-file=.env scripts/queue-status.ts"
+    "db:seed": "node --use-system-ca ./node_modules/tsx/dist/cli.mjs --env-file=.env prisma/seed.ts",
+    "worker": "node --use-system-ca ./node_modules/tsx/dist/cli.mjs --env-file=.env worker/index.ts"
   },
   "prisma": {
     "seed": "tsx --env-file=.env prisma/seed.ts"
@@ -48,5 +45,3 @@
     "typescript": "^5"
   }
 }
-
-
