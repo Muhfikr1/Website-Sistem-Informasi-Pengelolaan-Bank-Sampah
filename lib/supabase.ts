@@ -1,6 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
 
+// Di lingkungan development / local machine (misalnya Windows dengan inspeksi SSL oleh antivirus lokal seperti Avast/AVG),
+// Node.js runtime dapat gagal memvalidasi sertifikat TLS (UNABLE_TO_VERIFY_LEAF_SIGNATURE).
+if (process.env.NODE_ENV !== "production" || process.env.ALLOW_INSECURE_TLS === "true") {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+}
+
 function getValidSupabaseUrl(): string {
   const envUrl =
     process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
