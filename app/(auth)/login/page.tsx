@@ -58,12 +58,13 @@ function LoginForm() {
       {/* Login Form */}
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-2">
+          <label htmlFor="login-email" className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-2">
             Alamat Email
           </label>
           <div className="relative">
             <Mail className="w-5 h-5 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
+              id="login-email"
               type="email"
               required
               value={email}
@@ -75,12 +76,13 @@ function LoginForm() {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-2">
+          <label htmlFor="login-password" className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-2">
             Kata Sandi
           </label>
           <div className="relative">
             <Lock className="w-5 h-5 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
+              id="login-password"
               type="password"
               required
               value={password}

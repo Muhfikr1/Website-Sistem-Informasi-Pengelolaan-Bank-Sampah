@@ -119,12 +119,13 @@ export default function RegisterPage() {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-1.5">
+            <label htmlFor="register-name" className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-1.5">
               Nama Lengkap Nasabah *
             </label>
             <div className="relative">
               <User className="w-5 h-5 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
+                id="register-name"
                 type="text"
                 required
                 value={name}
@@ -137,12 +138,13 @@ export default function RegisterPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-1.5">
+              <label htmlFor="register-email" className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-1.5">
                 Alamat Email *
               </label>
               <div className="relative">
                 <Mail className="w-5 h-5 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
+                  id="register-email"
                   type="email"
                   required
                   value={email}
@@ -154,12 +156,13 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-1.5">
+              <label htmlFor="register-password" className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-1.5">
                 Kata Sandi *
               </label>
               <div className="relative">
                 <Lock className="w-5 h-5 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
+                  id="register-password"
                   type="password"
                   required
                   value={password}
@@ -173,12 +176,13 @@ export default function RegisterPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-1.5">
+              <label htmlFor="register-phone" className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-1.5">
                 Nomor Telepon / WhatsApp
               </label>
               <div className="relative">
                 <Phone className="w-5 h-5 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
+                  id="register-phone"
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
@@ -189,12 +193,13 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-1.5">
+              <label htmlFor="register-address" className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-1.5">
                 Alamat Domisili
               </label>
               <div className="relative">
                 <MapPin className="w-5 h-5 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
+                  id="register-address"
                   type="text"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
@@ -207,11 +212,12 @@ export default function RegisterPage() {
 
           {/* Upload Document Section */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-1.5">
+            <label htmlFor="register-document" className="block text-xs font-semibold uppercase tracking-wider text-neutral-700 mb-1.5">
               Unggah Dokumen KTP / Berkas Pendaftaran *
             </label>
-            <div className="relative border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/50 rounded-xl p-5 text-center transition-all cursor-pointer">
+            <div className="relative border-2 border-dashed border-emerald-300 hover:border-emerald-500 focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-2 bg-emerald-50/50 rounded-xl p-5 text-center transition-all cursor-pointer">
               <input
+                id="register-document"
                 type="file"
                 required
                 accept=".pdf,.png,.jpg,.jpeg"

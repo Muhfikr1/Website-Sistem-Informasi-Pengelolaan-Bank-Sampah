@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import ErrorAlert from "@/components/ui/ErrorAlert";
 import { formatRupiah } from "@/lib/ui-format";
@@ -45,6 +45,12 @@ export function DepositForm({
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<Success | null>(null);
+    const successRef = useRef<HTMLDivElement>(null);
+
+    // Setelah berhasil, form diganti ringkasan: pindahkan fokus ke sana agar pengguna keyboard dan pembaca layar tidak "tersesat"
+    useEffect(() => {
+        if (success) successRef.current?.focus();
+    }, [success]);
 
     const priceOf = useMemo(() => new Map(categories.map((c) => [c.id, c.pricePerKg])), [categories]);
 
@@ -104,7 +110,12 @@ export function DepositForm({
 
     if (success) {
         return (
-            <div className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-5">
+            <div
+                ref={successRef}
+                tabIndex={-1}
+                role="status"
+                className="space-y-3 rounded-lg border border-green-200 bg-green-50 p-5 outline-none"
+            >
                 <h2 className="text-lg font-semibold text-green-800">Setoran berhasil dicatat</h2>
                 <dl className="space-y-1 text-sm">
                     <div className="flex justify-between"><dt>Kode transaksi</dt><dd className="font-mono">{success.transactionCode}</dd></div>
@@ -117,7 +128,7 @@ export function DepositForm({
                     <p className="text-xs text-amber-700">Setoran tersimpan, tetapi notifikasi belum bisa dijadwalkan (antrean sedang bermasalah).</p>
                 )}
                 <div className="flex gap-2 pt-2">
-                    <button onClick={reset} className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">Catat setoran lagi</button>
+                    <button type="button" onClick={reset} className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">Catat setoran lagi</button>
                     <Link href="/petugas/deposits" className="rounded-md border px-4 py-2 text-sm">Lihat daftar</Link>
                 </div>
             </div>
@@ -125,7 +136,7 @@ export function DepositForm({
     }
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-5 rounded-lg border bg-white p-5">
+        <form onSubmit={handleSubmit} aria-busy={submitting} className="space-y-5 rounded-lg border bg-white p-5">
             {error && <ErrorAlert message={error} />}
 
             <div>
@@ -143,16 +154,20 @@ export function DepositForm({
                 </select>
             </div>
 
-            <div className="space-y-3">
-                <p className="text-sm font-medium">Jenis sampah</p>
+            <div className="space-y-3" role="group" aria-labelledby="rows-label">
+                <p id="rows-label" className="text-sm font-medium">Jenis sampah</p>
                 {rows.map((row, index) => {
                     const problem = rowProblem(row, index);
                     const touched = row.categoryId !== "" || row.weight !== "";
+                    const showProblem = touched && problem;
+                    const problemId = `row-${row.key}-problem`;
                     return (
                         <div key={row.key} className="space-y-1">
                             <div className="flex gap-2">
                                 <select
-                                    aria-label="Kategori sampah"
+                                    aria-label={`Kategori sampah, baris ${index + 1}`}
+                                    aria-invalid={showProblem ? true : undefined}
+                                    aria-describedby={showProblem ? problemId : undefined}
                                     value={row.categoryId}
                                     onChange={(e) => updateRow(row.key, { categoryId: e.target.value })}
                                     className="flex-1 rounded-md border px-3 py-2 text-sm"
@@ -163,7 +178,9 @@ export function DepositForm({
                                     ))}
                                 </select>
                                 <input
-                                    aria-label="Berat (kg)"
+                                    aria-label={`Berat dalam kilogram, baris ${index + 1}`}
+                                    aria-invalid={showProblem ? true : undefined}
+                                    aria-describedby={showProblem ? problemId : undefined}
                                     inputMode="decimal"
                                     placeholder="Berat kg"
                                     value={row.weight}
@@ -175,10 +192,10 @@ export function DepositForm({
                                     disabled={rows.length === 1}
                                     onClick={() => setRows((prev) => prev.filter((r) => r.key !== row.key))}
                                     className="rounded-md border px-3 text-sm disabled:opacity-40"
-                                    aria-label="Hapus baris"
-                                >✕</button>
+                                    aria-label={`Hapus baris ${index + 1}`}
+                                ><span aria-hidden="true">✕</span></button>
                             </div>
-                            {touched && problem && <p className="text-xs text-red-600">{problem}</p>}
+                            {showProblem && <p id={problemId} className="text-xs text-red-600">{problem}</p>}
                         </div>
                     );
                 })}
@@ -201,11 +218,17 @@ export function DepositForm({
                 <button
                     type="submit"
                     disabled={!formValid || submitting}
+                    aria-describedby={!formValid ? "submit-hint" : undefined}
                     className="rounded-md bg-green-600 px-5 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     {submitting ? "Menyimpan..." : "Simpan Setoran"}
                 </button>
             </div>
+            {!formValid && (
+                <p id="submit-hint" className="text-xs text-gray-500">
+                    Pilih nasabah dan lengkapi semua baris sampah untuk mengaktifkan tombol Simpan Setoran.
+                </p>
+            )}
         </form>
     );
 }
