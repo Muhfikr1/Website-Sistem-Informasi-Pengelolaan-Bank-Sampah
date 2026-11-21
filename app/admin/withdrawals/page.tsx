@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorAlert from "@/components/ui/ErrorAlert";
+import Modal from "@/components/ui/Modal";
 import { formatRupiah } from "@/lib/ui-format";
 
 interface WithdrawalItem {
@@ -325,9 +326,10 @@ export default function AdminWithdrawalsPage() {
       {/* Kontrol Filter & Search */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         {/* Tab Filter Status */}
-        <div className="flex flex-wrap rounded-xl bg-neutral-100 p-1 text-xs font-semibold">
+        <div role="group" aria-label="Filter status penarikan" className="flex flex-wrap rounded-xl bg-neutral-100 p-1 text-xs font-semibold">
           <button
             type="button"
+            aria-pressed={statusFilter === "ALL"}
             onClick={() => {
               setStatusFilter("ALL");
               setCurrentPage(1);
@@ -342,6 +344,7 @@ export default function AdminWithdrawalsPage() {
           </button>
           <button
             type="button"
+            aria-pressed={statusFilter === "PENDING"}
             onClick={() => {
               setStatusFilter("PENDING");
               setCurrentPage(1);
@@ -356,6 +359,7 @@ export default function AdminWithdrawalsPage() {
           </button>
           <button
             type="button"
+            aria-pressed={statusFilter === "APPROVED"}
             onClick={() => {
               setStatusFilter("APPROVED");
               setCurrentPage(1);
@@ -370,6 +374,7 @@ export default function AdminWithdrawalsPage() {
           </button>
           <button
             type="button"
+            aria-pressed={statusFilter === "REJECTED"}
             onClick={() => {
               setStatusFilter("REJECTED");
               setCurrentPage(1);
@@ -389,6 +394,7 @@ export default function AdminWithdrawalsPage() {
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
           <input
             type="text"
+            aria-label="Cari penarikan berdasarkan kode atau nama nasabah"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Cari kode atau nasabah..."
@@ -397,6 +403,7 @@ export default function AdminWithdrawalsPage() {
           {searchInput && (
             <button
               type="button"
+              aria-label="Hapus pencarian"
               onClick={() => setSearchInput("")}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
             >
@@ -412,7 +419,8 @@ export default function AdminWithdrawalsPage() {
       {/* Tabel Data Penarikan */}
       <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-neutral-600">
+          <table aria-busy={loading} className="w-full text-left text-sm text-neutral-600">
+            <caption className="sr-only">Daftar pengajuan penarikan saldo: kode, nasabah, nominal, status, dan aksi</caption>
             <thead className="border-b border-neutral-100 bg-neutral-50/70 text-xs font-semibold uppercase tracking-wider text-neutral-500">
               <tr>
                 <th scope="col" className="px-5 py-3.5">Kode & Tanggal</th>
@@ -558,6 +566,7 @@ export default function AdminWithdrawalsPage() {
                             <button
                               type="button"
                               onClick={() => openApproveModal(w)}
+                              aria-label={`Setujui penarikan ${w.withdrawalCode}`}
                               className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs transition-colors"
                             >
                               <Check className="h-3.5 w-3.5" />
@@ -566,6 +575,7 @@ export default function AdminWithdrawalsPage() {
                             <button
                               type="button"
                               onClick={() => openRejectModal(w)}
+                              aria-label={`Tolak penarikan ${w.withdrawalCode}`}
                               className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white hover:bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 shadow-2xs transition-colors"
                             >
                               <X className="h-3.5 w-3.5" />
@@ -630,19 +640,20 @@ export default function AdminWithdrawalsPage() {
 
       {/* Modal Konfirmasi Persetujuan (APPROVE) */}
       {modalAction === "APPROVE" && selectedWithdrawal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
-            onClick={() => !isPending && closeModal()}
-          />
-          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl transition-all">
+        <Modal
+          labelledBy="approve-title"
+          onClose={closeModal}
+          disableClose={isPending}
+          className="max-w-md"
+        >
+          <div className="p-6">
             <div className="flex items-center justify-between pb-4 border-b border-neutral-100">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
                   <CheckCircle2 className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-neutral-900">Konfirmasi Persetujuan</h3>
+                  <h3 id="approve-title" className="text-lg font-bold text-neutral-900">Konfirmasi Persetujuan</h3>
                   <p className="text-xs text-neutral-500">Mutasi saldo debit nasabah akan segera diproses</p>
                 </div>
               </div>
@@ -650,6 +661,7 @@ export default function AdminWithdrawalsPage() {
                 type="button"
                 disabled={isPending}
                 onClick={closeModal}
+                aria-label="Tutup"
                 className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100"
               >
                 <X className="h-5 w-5" />
@@ -657,14 +669,14 @@ export default function AdminWithdrawalsPage() {
             </div>
 
             {actionError && (
-              <div className="mt-4 flex items-start gap-2 rounded-xl bg-red-50 p-3 text-xs text-red-700 border border-red-200">
+              <div role="alert" className="mt-4 flex items-start gap-2 rounded-xl bg-red-50 p-3 text-xs text-red-700 border border-red-200">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-red-500 mt-0.5" />
                 <span>{actionError}</span>
               </div>
             )}
 
             {actionSuccess && (
-              <div className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800 border border-emerald-200">
+              <div role="status" className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800 border border-emerald-200">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
                 <span>{actionSuccess}</span>
               </div>
@@ -729,24 +741,26 @@ export default function AdminWithdrawalsPage() {
               </button>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* Modal Input Alasan Penolakan (REJECT) */}
       {modalAction === "REJECT" && selectedWithdrawal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
-            onClick={() => !isPending && closeModal()}
-          />
-          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl transition-all">
+        <Modal
+          labelledBy="reject-title"
+          onClose={closeModal}
+          disableClose={isPending}
+          initialFocusId="rejection-reason"
+          className="max-w-md"
+        >
+          <div className="p-6">
             <div className="flex items-center justify-between pb-4 border-b border-neutral-100">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50 text-red-700">
                   <XCircle className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-neutral-900">Tolak Pengajuan Penarikan</h3>
+                  <h3 id="reject-title" className="text-lg font-bold text-neutral-900">Tolak Pengajuan Penarikan</h3>
                   <p className="text-xs text-neutral-500">Saldo nasabah tidak akan dikurangi</p>
                 </div>
               </div>
@@ -754,6 +768,7 @@ export default function AdminWithdrawalsPage() {
                 type="button"
                 disabled={isPending}
                 onClick={closeModal}
+                aria-label="Tutup"
                 className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100"
               >
                 <X className="h-5 w-5" />
@@ -761,14 +776,14 @@ export default function AdminWithdrawalsPage() {
             </div>
 
             {actionError && (
-              <div className="mt-4 flex items-start gap-2 rounded-xl bg-red-50 p-3 text-xs text-red-700 border border-red-200">
+              <div role="alert" className="mt-4 flex items-start gap-2 rounded-xl bg-red-50 p-3 text-xs text-red-700 border border-red-200">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-red-500 mt-0.5" />
                 <span>{actionError}</span>
               </div>
             )}
 
             {actionSuccess && (
-              <div className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800 border border-emerald-200">
+              <div role="status" className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800 border border-emerald-200">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
                 <span>{actionSuccess}</span>
               </div>
@@ -791,10 +806,11 @@ export default function AdminWithdrawalsPage() {
 
             <form onSubmit={handleProcess} className="mt-4 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                <label htmlFor="rejection-reason" className="block text-xs font-semibold text-neutral-700 mb-1">
                   Alasan Penolakan <span className="text-red-500">*</span>
                 </label>
                 <textarea
+                  id="rejection-reason"
                   required
                   minLength={5}
                   rows={3}
@@ -832,7 +848,7 @@ export default function AdminWithdrawalsPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

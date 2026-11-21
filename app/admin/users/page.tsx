@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorAlert from "@/components/ui/ErrorAlert";
+import Modal from "@/components/ui/Modal";
 import { formatRupiah } from "@/lib/ui-format";
 
 interface UserDocumentItem {
@@ -327,9 +328,10 @@ export default function AdminUsersPage() {
       {/* Kontrol Filter & Search */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         {/* Tab Role */}
-        <div className="flex rounded-xl bg-neutral-100 p-1 text-xs font-semibold">
+        <div role="group" aria-label="Filter peran pengguna" className="flex rounded-xl bg-neutral-100 p-1 text-xs font-semibold">
           <button
             type="button"
+            aria-pressed={roleFilter === "all"}
             onClick={() => {
               setRoleFilter("all");
               setCurrentPage(1);
@@ -344,6 +346,7 @@ export default function AdminUsersPage() {
           </button>
           <button
             type="button"
+            aria-pressed={roleFilter === "nasabah"}
             onClick={() => {
               setRoleFilter("nasabah");
               setCurrentPage(1);
@@ -358,6 +361,7 @@ export default function AdminUsersPage() {
           </button>
           <button
             type="button"
+            aria-pressed={roleFilter === "petugas"}
             onClick={() => {
               setRoleFilter("petugas");
               setCurrentPage(1);
@@ -377,6 +381,7 @@ export default function AdminUsersPage() {
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
           <input
             type="text"
+            aria-label="Cari pengguna berdasarkan nama atau email"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Cari nama atau email..."
@@ -385,6 +390,7 @@ export default function AdminUsersPage() {
           {searchInput && (
             <button
               type="button"
+              aria-label="Hapus pencarian"
               onClick={() => setSearchInput("")}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
             >
@@ -400,7 +406,8 @@ export default function AdminUsersPage() {
       {/* Tabel Data Pengguna */}
       <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-neutral-600">
+          <table aria-busy={loading} className="w-full text-left text-sm text-neutral-600">
+            <caption className="sr-only">Daftar pengguna: nama, peran, kontak, dokumen, dan tanggal bergabung</caption>
             <thead className="border-b border-neutral-100 bg-neutral-50/70 text-xs font-semibold uppercase tracking-wider text-neutral-500">
               <tr>
                 <th scope="col" className="px-5 py-3.5">Nama & Kontak</th>
@@ -600,22 +607,21 @@ export default function AdminUsersPage() {
 
       {/* Modal Tambah Petugas Baru */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
-            onClick={() => !isPending && setIsModalOpen(false)}
-          />
-
-          {/* Modal Content */}
-          <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl transition-all">
+        <Modal
+          labelledBy="create-petugas-title"
+          onClose={() => setIsModalOpen(false)}
+          disableClose={isPending}
+          initialFocusId="petugas-name"
+          className="max-w-lg"
+        >
+          <div className="p-6">
             <div className="flex items-center justify-between pb-4 border-b border-neutral-100">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
                   <UserPlus className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-neutral-900">Tambah Akun Petugas</h3>
+                  <h3 id="create-petugas-title" className="text-lg font-bold text-neutral-900">Tambah Akun Petugas</h3>
                   <p className="text-xs text-neutral-500">Buat akses portal petugas operasional bank sampah</p>
                 </div>
               </div>
@@ -623,6 +629,7 @@ export default function AdminUsersPage() {
                 type="button"
                 disabled={isPending}
                 onClick={() => setIsModalOpen(false)}
+                aria-label="Tutup"
                 className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600"
               >
                 <X className="h-5 w-5" />
@@ -630,14 +637,14 @@ export default function AdminUsersPage() {
             </div>
 
             {formError && (
-              <div className="mt-4 flex items-start gap-2 rounded-xl bg-red-50 p-3 text-xs text-red-700 border border-red-200">
+              <div role="alert" className="mt-4 flex items-start gap-2 rounded-xl bg-red-50 p-3 text-xs text-red-700 border border-red-200">
                 <AlertCircle className="h-4 w-4 shrink-0 text-red-500 mt-0.5" />
                 <span>{formError}</span>
               </div>
             )}
 
             {formSuccess && (
-              <div className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800 border border-emerald-200">
+              <div role="status" className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800 border border-emerald-200">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
                 <span>{formSuccess}</span>
               </div>
@@ -645,10 +652,11 @@ export default function AdminUsersPage() {
 
             <form onSubmit={handleCreatePetugas} className="mt-4 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                <label htmlFor="petugas-name" className="block text-xs font-semibold text-neutral-700 mb-1">
                   Nama Lengkap Petugas <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="petugas-name"
                   type="text"
                   required
                   value={formName}
@@ -659,10 +667,11 @@ export default function AdminUsersPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                <label htmlFor="petugas-email" className="block text-xs font-semibold text-neutral-700 mb-1">
                   Alamat Email <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="petugas-email"
                   type="email"
                   required
                   value={formEmail}
@@ -673,10 +682,11 @@ export default function AdminUsersPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                <label htmlFor="petugas-password" className="block text-xs font-semibold text-neutral-700 mb-1">
                   Kata Sandi Sementara <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="petugas-password"
                   type="password"
                   required
                   minLength={6}
@@ -689,8 +699,9 @@ export default function AdminUsersPage() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">Nomor Telepon</label>
+                  <label htmlFor="petugas-phone" className="block text-xs font-semibold text-neutral-700 mb-1">Nomor Telepon</label>
                   <input
+                    id="petugas-phone"
                     type="tel"
                     value={formPhone}
                     onChange={(e) => setFormPhone(e.target.value)}
@@ -699,8 +710,9 @@ export default function AdminUsersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">Alamat Domisili</label>
+                  <label htmlFor="petugas-address" className="block text-xs font-semibold text-neutral-700 mb-1">Alamat Domisili</label>
                   <input
+                    id="petugas-address"
                     type="text"
                     value={formAddress}
                     onChange={(e) => setFormAddress(e.target.value)}
@@ -736,7 +748,7 @@ export default function AdminUsersPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

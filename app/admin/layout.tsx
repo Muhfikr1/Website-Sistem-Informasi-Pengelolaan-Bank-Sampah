@@ -9,7 +9,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     if (session.role !== "admin") redirect("/forbidden");
 
     return (
-        <DashboardShell role="admin" userName={session.name} userEmail={session.email}>
+        <DashboardShell userRole="admin" userName={session.name} userEmail={session.email}>
             {children}
         </DashboardShell>
     );

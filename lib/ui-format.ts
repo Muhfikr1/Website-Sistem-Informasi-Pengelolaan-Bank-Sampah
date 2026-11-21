@@ -16,3 +16,16 @@ export function formatRupiah(value: number): string {
     const formatter = Number.isInteger(value) ? rupiahInteger : rupiahDecimal;
     return formatter.format(value).replace(/\u00A0/g, " ");
 }
+const kgFormatter = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** 1234.5 -> "1.234,50" (tanpa satuan) */
+export function formatKg(value: number): string {
+  return kgFormatter.format(value);
+}
+
+const percentFormatter = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+/** 45.234 -> "45,2%" */
+export function formatPercent(value: number): string {
+  return `${percentFormatter.format(value)}%`;
+}

@@ -9,7 +9,7 @@ export default async function NasabahLayout({ children }: { children: ReactNode 
     if (session.role !== "nasabah") redirect("/forbidden");
 
     return (
-        <DashboardShell role="nasabah" userName={session.name} userEmail={session.email}>
+        <DashboardShell userRole="nasabah" userName={session.name} userEmail={session.email}>
             {children}
         </DashboardShell>
     );
