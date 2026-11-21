@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Menu, Recycle, X } from "lucide-react";
 import LogoutButton from "@/components/LogoutButton";
 import PushToggle from "@/components/PushToggle";
@@ -8,7 +8,8 @@ import Sidebar from "./Sidebar";
 import { ROLE_META, type Role } from "./nav-items";
 
 interface DashboardShellProps {
-    role: Role;
+    /** Peran pengguna yang sedang login; menentukan menu dan warna. */
+    userRole: Role;
     userName: string;
     userEmail: string;
     children: ReactNode;
@@ -19,19 +20,31 @@ interface DashboardShellProps {
  * Semua halaman di /admin, /petugas, /nasabah otomatis memakai ini lewat layout.tsx.
  */
 export default function DashboardShell({
-    role,
+    userRole,
     userName,
     userEmail,
     children,
 }: DashboardShellProps) {
     const [open, setOpen] = useState(false);
-    const meta = ROLE_META[role];
+    const menuButtonRef = useRef<HTMLButtonElement>(null);
+    const closeButtonRef = useRef<HTMLButtonElement>(null);
+    const meta = ROLE_META[userRole];
 
-    // Tutup drawer dengan tombol Escape (aksesibilitas keyboard)
+    /** Tutup drawer dan kembalikan fokus ke tombol pembuka (penting bagi pengguna keyboard). */
+    function closeMenu() {
+        setOpen(false);
+        menuButtonRef.current?.focus();
+    }
+
+    // Saat drawer terbuka: fokus pindah ke tombol tutup, dan Esc menutup drawer
     useEffect(() => {
         if (!open) return;
+        closeButtonRef.current?.focus();
         const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") setOpen(false);
+            if (e.key === "Escape") {
+                setOpen(false);
+                menuButtonRef.current?.focus();
+            }
         };
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
@@ -54,7 +67,7 @@ export default function DashboardShell({
             {/* Sidebar desktop */}
             <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-neutral-200 bg-white p-4 lg:flex">
                 <div className="mb-6 px-2 pt-1">{brand}</div>
-                <Sidebar role={role} />
+                <Sidebar role={userRole} />
             </aside>
 
             {/* Drawer HP */}
@@ -63,7 +76,8 @@ export default function DashboardShell({
                     <button
                         type="button"
                         aria-label="Tutup menu"
-                        onClick={() => setOpen(false)}
+                        tabIndex={-1}
+                        onClick={closeMenu}
                         className="absolute inset-0 bg-black/40"
                     />
                     <aside
@@ -76,23 +90,25 @@ export default function DashboardShell({
                         <div className="mb-6 flex items-center justify-between px-2 pt-1">
                             {brand}
                             <button
+                                ref={closeButtonRef}
                                 type="button"
-                                onClick={() => setOpen(false)}
+                                onClick={closeMenu}
                                 aria-label="Tutup menu"
                                 className="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100"
                             >
                                 <X className="h-5 w-5" aria-hidden="true" />
                             </button>
                         </div>
-                        <Sidebar role={role} onNavigate={() => setOpen(false)} />
+                        <Sidebar role={userRole} onNavigate={() => setOpen(false)} />
                     </aside>
                 </div>
             )}
 
-            {/* Area utama */}
-            <div className="lg:pl-64">
+            {/* Area utama. `inert` saat drawer terbuka: Tab tidak bisa keluar dari drawer ke halaman di belakangnya */}
+            <div className="lg:pl-64" inert={open}>
                 <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-neutral-200 bg-white/90 px-4 backdrop-blur sm:px-6">
                     <button
+                        ref={menuButtonRef}
                         type="button"
                         onClick={() => setOpen(true)}
                         aria-label="Buka menu"
@@ -108,7 +124,7 @@ export default function DashboardShell({
                             <span className="text-sm font-semibold text-neutral-800">{userName}</span>
                             <span className="text-xs text-neutral-500">{userEmail}</span>
                         </div>
-                        {role === "nasabah" && <PushToggle />}
+                        {userRole === "nasabah" && <PushToggle />}
                         <LogoutButton />
                     </div>
                 </header>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, FolderKanban, Loader2, Pencil, Plus, Power, Search, Trash2, X } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorAlert from "@/components/ui/ErrorAlert";
+import Modal from "@/components/ui/Modal";
 import { formatRupiah } from "@/lib/ui-format";
 import WasteCategoryFormDialog from "./WasteCategoryFormDialog";
 import type { WasteCategoryRow } from "./types";
@@ -23,22 +24,8 @@ function ConfirmDeleteDialog({
     onCancel: () => void;
     onConfirm: () => void;
 }) {
-    const ref = useRef<HTMLDialogElement>(null);
-    useEffect(() => {
-        const dialog = ref.current;
-        if (dialog && !dialog.open) dialog.showModal();
-    }, []);
-
     return (
-        <dialog
-            ref={ref}
-            onCancel={(event) => {
-                event.preventDefault();
-                onCancel();
-            }}
-            aria-labelledby="delete-dialog-title"
-            className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl bg-white p-0 text-neutral-900 shadow-xl backdrop:bg-black/40"
-        >
+        <Modal labelledBy="delete-dialog-title" onClose={onCancel} disableClose={busy} initialFocusId="delete-cancel" className="max-w-md">
             <div className="p-6">
                 <h2 id="delete-dialog-title" className="text-lg font-bold">Hapus jenis sampah?</h2>
                 <p className="mt-2 text-sm text-neutral-600">
@@ -46,6 +33,7 @@ function ConfirmDeleteDialog({
                 </p>
                 <div className="mt-6 flex justify-end gap-3">
                     <button
+                        id="delete-cancel"
                         type="button"
                         onClick={onCancel}
                         className="rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
@@ -63,7 +51,7 @@ function ConfirmDeleteDialog({
                     </button>
                 </div>
             </div>
-        </dialog>
+        </Modal>
     );
 }
 

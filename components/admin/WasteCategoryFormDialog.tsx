@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { ImagePlus, Loader2, X } from "lucide-react";
 import ErrorAlert from "@/components/ui/ErrorAlert";
+import Modal from "@/components/ui/Modal";
 import {
     CATALOG_IMAGE_ACCEPT_ATTR,
     MAX_CATALOG_IMAGE_BYTES,
@@ -52,7 +53,6 @@ function validateFields(
 }
 
 export default function WasteCategoryFormDialog({ mode, item, onClose, onSaved }: FormDialogProps) {
-    const dialogRef = useRef<HTMLDialogElement>(null);
     const previewRef = useRef<string | null>(null);
 
     const [code, setCode] = useState(item?.code ?? "");
@@ -65,10 +65,8 @@ export default function WasteCategoryFormDialog({ mode, item, onClose, onSaved }
     const [submitError, setSubmitError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
 
-    // <dialog> bawaan browser: fokus terkunci di dalam dialog dan Esc menutupnya
+    // Bebaskan memori pratinjau gambar saat dialog ditutup
     useEffect(() => {
-        const dialog = dialogRef.current;
-        if (dialog && !dialog.open) dialog.showModal();
         return () => {
             if (previewRef.current) URL.revokeObjectURL(previewRef.current);
         };
@@ -148,17 +146,12 @@ export default function WasteCategoryFormDialog({ mode, item, onClose, onSaved }
     const shownImage = preview ?? item?.imageUrl ?? null;
 
     return (
-        <dialog
-            ref={dialogRef}
-            onCancel={(event) => {
-                event.preventDefault();
-                onClose();
-            }}
-            onClick={(event) => {
-                if (event.target === dialogRef.current) onClose();
-            }}
-            aria-labelledby="category-dialog-title"
-            className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl bg-white p-0 text-neutral-900 shadow-xl backdrop:bg-black/40"
+        <Modal
+            labelledBy="category-dialog-title"
+            onClose={onClose}
+            disableClose={submitting}
+            initialFocusId={mode === "create" ? "cat-code" : "cat-name"}
+            className="max-w-lg"
         >
             <form onSubmit={handleSubmit} noValidate className="p-6">
                 <div className="mb-5 flex items-start justify-between gap-4">
@@ -292,6 +285,6 @@ export default function WasteCategoryFormDialog({ mode, item, onClose, onSaved }
                     </button>
                 </div>
             </form>
-        </dialog>
+        </Modal>
     );
 }
